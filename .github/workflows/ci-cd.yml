@@ -1,0 +1,73 @@
+name: CI-CD for Java/Maven
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+
+  # Установка зависимостей, сборка и тестирование Java/Maven-проекта
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+
+    # Проверка кода
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # Установка JDK
+    - name: Set up JDK 23
+      uses: actions/setup-java@v4
+      with:
+        java-version: '23'
+        distribution: 'temurin'
+        cache: maven
+
+    # Сборка через Maven
+    - name: Build with Maven
+      run: mvn -B package --file pom.xml
+
+    # Запуск тестов
+    - name: Run tests
+      run: mvn test
+
+  # Деплой с использованием Docker: настройка Docker, пуш образа и запуск контейнера
+  docker_deploy:
+    runs-on: ubuntu-latest
+    needs: build  # Этот job зависит от успешного выполнения "build"
+
+    steps:
+
+    # Проверка кода
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # Установка Docker Buildx
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    # Вход в DockerHub
+    - name: Login to DockerHub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    # Сборка и тегирование Docker образа
+    - name: Build Docker image
+      run: |
+        docker build -t chertchill_task_5:${{ github.sha }} .
+        docker tag chertchill_task_5:${{ github.sha }} chertchill/chertchill_task_5:${{ github.sha }}
+
+    # Публикация Docker образа
+    - name: Push Docker image
+      run: |
+        docker push chertchill/chertchill_task_5:${{ github.sha }}
+
+    # Разворачивание контейнера
+    - name: Deploy the Docker container (example with Docker run)
+      run: |
+        docker run -d -p 3000:3000 chertchill/chertchill_task_5:${{ github.sha }}
